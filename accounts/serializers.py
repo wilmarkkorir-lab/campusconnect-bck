@@ -36,7 +36,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             purpose='email_verify',
             expires_at=timezone.now() + timedelta(minutes=10)
         )
-        send_otp_email.delay(user.email, code, 'email_verify')
+        try:
+            send_otp_email.delay(user.email, code, 'email_verify')
+        except Exception:
+            send_otp_email(user.email, code, 'email_verify')
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

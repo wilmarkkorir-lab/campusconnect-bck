@@ -114,7 +114,10 @@ class ResendOTPView(APIView):
                 user=user, code=code, purpose=purpose,
                 expires_at=timezone.now() + timedelta(minutes=10)
             )
-            send_otp_email.delay(user.email, code, purpose)
+            try:
+                send_otp_email.delay(user.email, code, purpose)
+            except Exception:
+                send_otp_email(user.email, code, purpose)
             return Response({'message': 'OTP sent.'})
         except User.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -133,7 +136,10 @@ class ForgotPasswordView(APIView):
                 user=user, code=code, purpose='password_reset',
                 expires_at=timezone.now() + timedelta(minutes=15)
             )
-            send_otp_email.delay(user.email, code, 'password_reset')
+            try:
+                send_otp_email.delay(user.email, code, 'password_reset')
+            except Exception:
+                send_otp_email(user.email, code, 'password_reset')
         except User.DoesNotExist:
             pass
         return Response({'message': 'If the email exists, a reset code has been sent.'})
