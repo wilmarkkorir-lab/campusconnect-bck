@@ -22,11 +22,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        from django.db import transaction
         validated_data.pop('password2')
-        # Activate immediately so login is never blocked
         validated_data['is_active'] = True
-        user = User.objects.create_user(**validated_data)
-        self._send_verification_otp(user)
+        with transaction.atomic():
+            user = User.objects.create_user(**validated_data)
+        # OTP + email outside the transaction — never rolls back user creation
+        try:
+            self._send_verification_otp(user)
+        except Exception:
+            pass
         return user
 
     def _send_verification_otp(self, user):
@@ -38,7 +43,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             purpose='email_verify',
             expires_at=timezone.now() + timedelta(minutes=10)
         )
-        # Fire-and-forget — never crash registration if email fails
         try:
             send_otp_email.delay(user.email, code, 'email_verify')
         except Exception:
