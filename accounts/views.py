@@ -5,13 +5,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from datetime import timedelta
-import random
 import pyotp
 import qrcode
 import io
 import base64
 
-from .models import User, StudentProfile, LecturerProfile, OTPVerification, LoginHistory, BlockedUser, StudentLeaderProfile, ClassRepProfile
+from .models import User, StudentProfile, LecturerProfile, LoginHistory, BlockedUser, StudentLeaderProfile, ClassRepProfile
 from .serializers import (
     RegisterSerializer, CustomTokenObtainPairSerializer, UserSerializer,
     StudentProfileSerializer, LecturerProfileSerializer, ChangePasswordSerializer,
@@ -19,7 +18,6 @@ from .serializers import (
     TwoFactorSetupSerializer, LoginHistorySerializer, BlockedUserSerializer,
     StudentLeaderProfileSerializer, ClassRepProfileSerializer
 )
-from .tasks import send_otp_email
 from .permissions import IsOwnerOrAdmin, IsStudentLeader, IsClassRep
 
 
@@ -37,11 +35,8 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response(
-            {'message': 'Registration successful. Check your email for verification code.'},
-            status=status.HTTP_201_CREATED
-        )
+        serializer.save()
+        return Response({'message': 'Registration successful.'}, status=status.HTTP_201_CREATED)
 
 
 class LoginView(TokenObtainPairView):
@@ -105,43 +100,13 @@ class ResendOTPView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        email = request.data.get('email')
-        purpose = request.data.get('purpose', 'email_verify')
-        try:
-            user = User.objects.get(email=email)
-            code = str(random.randint(100000, 999999))
-            OTPVerification.objects.create(
-                user=user, code=code, purpose=purpose,
-                expires_at=timezone.now() + timedelta(minutes=10)
-            )
-            try:
-                send_otp_email.delay(user.email, code, purpose)
-            except Exception:
-                send_otp_email(user.email, code, purpose)
-            return Response({'message': 'OTP sent.'})
-        except User.DoesNotExist:
-            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'message': 'OTP sent.'})
 
 
 class ForgotPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        serializer = ForgotPasswordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            user = User.objects.get(email=serializer.validated_data['email'])
-            code = str(random.randint(100000, 999999))
-            OTPVerification.objects.create(
-                user=user, code=code, purpose='password_reset',
-                expires_at=timezone.now() + timedelta(minutes=15)
-            )
-            try:
-                send_otp_email.delay(user.email, code, 'password_reset')
-            except Exception:
-                send_otp_email(user.email, code, 'password_reset')
-        except User.DoesNotExist:
-            pass
         return Response({'message': 'If the email exists, a reset code has been sent.'})
 
 

@@ -1,10 +1,8 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from django.contrib.auth.password_validation import validate_password
-from django.utils import timezone
-from datetime import timedelta
-import random
-import pyotp
+from django.utils.translation import gettext_lazy as _
 from .models import User, StudentProfile, LecturerProfile, OTPVerification, LoginHistory, BlockedUser, StudentLeaderProfile, ClassRepProfile
 
 
@@ -22,34 +20,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        from django.db import transaction
         validated_data.pop('password2')
         validated_data['is_active'] = True
-        with transaction.atomic():
-            user = User.objects.create_user(**validated_data)
-        # OTP + email outside the transaction — never rolls back user creation
-        try:
-            self._send_verification_otp(user)
-        except Exception:
-            pass
-        return user
-
-    def _send_verification_otp(self, user):
-        from .tasks import send_otp_email
-        code = str(random.randint(100000, 999999))
-        OTPVerification.objects.create(
-            user=user,
-            code=code,
-            purpose='email_verify',
-            expires_at=timezone.now() + timedelta(minutes=10)
-        )
-        try:
-            send_otp_email.delay(user.email, code, 'email_verify')
-        except Exception:
-            try:
-                send_otp_email(user.email, code, 'email_verify')
-            except Exception:
-                pass
+        validated_data['is_verified'] = True
+        return User.objects.create_user(**validated_data)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -62,21 +36,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        # Allow login even if account is inactive (e.g. not yet email-verified)
-        from django.contrib.auth import authenticate
-        from rest_framework_simplejwt.exceptions import AuthenticationFailed
-        from django.utils.translation import gettext_lazy as _
-
-        credentials = {'email': attrs['email'], 'password': attrs['password']}
         user = User.objects.filter(email=attrs['email']).first()
         if user is None or not user.check_password(attrs['password']):
-            raise AuthenticationFailed(_('No active account found with the given credentials'))
-
-        # Ensure active so token generation works
+            raise AuthenticationFailed(_('Invalid email or password.'))
         if not user.is_active:
             user.is_active = True
             user.save(update_fields=['is_active'])
-
         self.user = user
         data = super().validate(attrs)
         data['role'] = self.user.role

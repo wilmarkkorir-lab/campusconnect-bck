@@ -113,6 +113,8 @@ CHANNEL_LAYERS = {
 
 CELERY_BROKER_URL = env('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = False
 
 AUTH_USER_MODEL = 'accounts.User'
 
