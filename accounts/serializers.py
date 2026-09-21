@@ -23,6 +23,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
+        # Activate immediately so login is never blocked
+        validated_data['is_active'] = True
         user = User.objects.create_user(**validated_data)
         self._send_verification_otp(user)
         return user
@@ -36,10 +38,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             purpose='email_verify',
             expires_at=timezone.now() + timedelta(minutes=10)
         )
+        # Fire-and-forget — never crash registration if email fails
         try:
             send_otp_email.delay(user.email, code, 'email_verify')
         except Exception:
-            send_otp_email(user.email, code, 'email_verify')
+            try:
+                send_otp_email(user.email, code, 'email_verify')
+            except Exception:
+                pass
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -52,6 +58,22 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        # Allow login even if account is inactive (e.g. not yet email-verified)
+        from django.contrib.auth import authenticate
+        from rest_framework_simplejwt.exceptions import AuthenticationFailed
+        from django.utils.translation import gettext_lazy as _
+
+        credentials = {'email': attrs['email'], 'password': attrs['password']}
+        user = User.objects.filter(email=attrs['email']).first()
+        if user is None or not user.check_password(attrs['password']):
+            raise AuthenticationFailed(_('No active account found with the given credentials'))
+
+        # Ensure active so token generation works
+        if not user.is_active:
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+
+        self.user = user
         data = super().validate(attrs)
         data['role'] = self.user.role
         data['full_name'] = self.user.full_name

@@ -9,7 +9,7 @@ environ.Env.read_env(BASE_DIR / '.env')
 
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', 'campusconnect.alwaysdata.net'])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', 'campusconnect.alwaysdata.net', '.alwaysdata.net'])
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -210,11 +210,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 OTP_TOTP_ISSUER = 'CampusConnect'
 
 # Security settings for production
+# SECURE_SSL_REDIRECT is intentionally off — alwaysdata handles SSL termination at the proxy level
 if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

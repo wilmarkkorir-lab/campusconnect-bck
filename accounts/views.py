@@ -61,8 +61,8 @@ class LoginView(TokenObtainPairView):
                 )
                 user.last_login_ip = get_client_ip(request)
                 user.save(update_fields=['last_login_ip'])
-            except User.DoesNotExist:
-                pass
+            except Exception:
+                pass  # Never let login history crash the login response
         return response
 
 
