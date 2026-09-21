@@ -10,7 +10,7 @@ import qrcode
 import io
 import base64
 
-from .models import User, StudentProfile, LecturerProfile, LoginHistory, BlockedUser, StudentLeaderProfile, ClassRepProfile
+from .models import User, StudentProfile, LecturerProfile, OTPVerification, LoginHistory, BlockedUser, StudentLeaderProfile, ClassRepProfile
 from .serializers import (
     RegisterSerializer, CustomTokenObtainPairSerializer, UserSerializer,
     StudentProfileSerializer, LecturerProfileSerializer, ChangePasswordSerializer,
